@@ -231,6 +231,6 @@ This initial agent serves as the basic building block for all subsequent, more c
 The complete code implementations for this lab can be found in the repository:
 
 - **[`app.py`](01-first-agent/app.py):** Contains the basic agent creation, the `.run()` example, and the `.run_stream()` example (Steps 2, 3, and 4).
-- **[`app_multimodal.py`](01-first-agent/app_multimodal.py):** Contains the advanced example demonstrating the use of `ChatMessage` for multimodal input (Step 5).
+- **[`app-chat-message.py`](01-first-agent/app-chat-message.py):** Contains the advanced example demonstrating the use of `ChatMessage` for multimodal input (Step 5).
 
 You are now prepared to move on to the next lab, which will focus on more advanced agent design patterns.
