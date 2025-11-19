@@ -162,3 +162,26 @@ asyncio.run(main())
 
 You will see the streaming in action!
 
+### 5. Running the agent with a ChatMessage
+
+Instead of a simple string, you can also provide one or more `ChatMessage` objects to the `run` and `run_stream` methods.
+
+Python
+
+```python
+from agent_framework import ChatMessage, TextContent, UriContent, Role
+
+message = ChatMessage(
+    role=Role.USER,
+    contents=[
+        TextContent(text="Tell me a joke about this image?"),
+        UriContent(uri="https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg", media_type="image/jpeg")
+    ]
+)
+
+async def main():
+    result = await agent.run(message)
+    print(result.text)
+
+asyncio.run(main())
+```
