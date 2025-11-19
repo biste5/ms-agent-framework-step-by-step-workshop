@@ -162,26 +162,75 @@ asyncio.run(main())
 
 You will see the streaming in action!
 
-### 5. Running the agent with a ChatMessage
+### 5. Running the agent with a ChatMessage: The Power of Structured Multimodal Messages
 
 Instead of a simple string, you can also provide one or more `ChatMessage` objects to the `run` and `run_stream` methods.
 
-Python
+#### Understanding `ChatMessage`
 
+`ChatMessage` is a structured object that represents a **single message within a conversation**, enabling clear definition of the message's properties:
+
+1.  **`role` (Sender):** Specifies who sent the message (e.g., `Role.USER`, `Role.AGENT`/`MODEL`).
+2.  **`contents` (Payload):** A list of content elements, supporting mixed data types.
+
+#### Why Use `ChatMessage`?
+
+The main advantage is support for **multimodality** and structured conversation context:
+
+| Benefit                | Description                                                  |
+| :--------------------- | :----------------------------------------------------------- |
+| **Multimodal Support** | Allows you to combine various data types—text, images, video URIs—within a single, cohesive message. |
+| **Clear Context**      | Explicitly setting the `role` is vital for managing conversation history and turns effectively. |
+
+#### The Example Explained: A Multimodal Request
+
+This code illustrates how `ChatMessage` allows the agent to process both a textual instruction and a visual element simultaneously.
+
+Python
 ```python
 from agent_framework import ChatMessage, TextContent, UriContent, Role
 
 message = ChatMessage(
-    role=Role.USER,
+    # The message is from the user
+    role=Role.USER, 
     contents=[
+        # The text part of the request
         TextContent(text="Tell me a joke about this image?"),
-        UriContent(uri="https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg", media_type="image/jpeg")
+        # The image part of the request, referenced by a URI
+        UriContent(uri="[https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg](https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg)", media_type="image/jpeg")
     ]
 )
 
 async def main():
-    result = await agent.run(message)
-    print(result.text)
+    # The agent receives the question AND the image together
+    result = await agent.run(message) 
+    print(result.text) 
 
 asyncio.run(main())
 ```
+
+### 📝 Lab 01 Conclusion: Your First Agent
+
+You have successfully completed the first foundational lab of the Microsoft Agent Framework workshop.
+
+------
+
+#### Key Takeaways from Lab 01
+
+- **Agent Creation:** You learned how to instantiate a conversational agent by connecting it to an **Azure OpenAI** backend using the `AzureOpenAIChatClient` and defining its personality via the `instructions` parameter (e.g., "You are good at telling jokes.").
+- **Basic Execution (`.run`):** You executed a simple, single-turn query using a standard Python string as input.
+- **Streaming Execution (`.run_stream`):** You implemented response streaming, demonstrating how the framework processes and delivers tokens in real-time, which is essential for a responsive user experience.
+- **Multimodal Communication (`ChatMessage`):** You explored the advanced pattern of using the `ChatMessage` object, which is crucial for sending **multimodal requests** (combining text and external media like images via URIs) and for managing complex **multi-turn conversations** effectively.
+
+This initial agent serves as the basic building block for all subsequent, more complex scenarios in this workshop.
+
+------
+
+### Code Reference
+
+The complete code implementations for this lab can be found in the repository:
+
+- **[`app.py`](01-first-agent/app.py):** Contains the basic agent creation, the `.run()` example, and the `.run_stream()` example (Steps 2, 3, and 4).
+- **[`app_multimodal.py`](01-first-agent/app_multimodal.py):** Contains the advanced example demonstrating the use of `ChatMessage` for multimodal input (Step 5).
+
+You are now prepared to move on to the next lab, which will focus on more advanced agent design patterns.

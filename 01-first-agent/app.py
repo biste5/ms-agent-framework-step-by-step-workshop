@@ -1,6 +1,5 @@
 import asyncio
 from agent_framework.azure import AzureOpenAIChatClient
-from agent_framework import ChatMessage, TextContent, UriContent, Role
 from azure.identity import AzureCliCredential
 
 agent = AzureOpenAIChatClient(
@@ -8,21 +7,14 @@ agent = AzureOpenAIChatClient(
     endpoint="https://warstandalone.openai.azure.com/",
     deployment_name="dep-gpt-5-mini"
 ).create_agent(
-    instructions="You are good at telling jokes.",
+    instructions="You are good at telling tales.",
     name="Joker"
 )
 
-
-message = ChatMessage(
-    role=Role.USER,
-    contents=[
-        TextContent(text="Tell me a joke about this image?"),
-        UriContent(uri="https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg", media_type="image/jpeg")
-    ]
-)
-
 async def main():
-    result = await agent.run(message)
-    print(result.text)
+    async for update in agent.run_stream("Tell me a tale about a pirate."):
+        if update.text:
+            print(update.text, end="", flush=True)
+    print()  # New line after streaming is complete
 
 asyncio.run(main())
