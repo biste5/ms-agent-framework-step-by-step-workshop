@@ -29,6 +29,15 @@ thread = agent.get_new_thread()
 
 You can then pass this thread object to the `run` and `run_stream` methods on the agent instance, along with the user input.
 
+> [!NOTE]
+> **Simulating User Interaction:** In this lab, the hardcoded strings passed to `agent.run()` (like `"Tell me a joke about a pirate."`) simulate user messages in a real conversational application. In production, these would typically come from:
+> - User input in a chat interface (web, mobile, or desktop app)
+> - Voice commands transcribed to text
+> - Messages from messaging platforms (Teams, Slack, etc.)
+> - API requests from other services
+>
+> The sequential calls to `agent.run()` in the examples below mimic back-and-forth exchanges between a user and the agent, demonstrating how the agent maintains context across multiple turns of conversation.
+
 ```python
 async def main():
     result1 = await agent.run("Tell me a joke about a pirate.", thread=thread)
@@ -48,7 +57,7 @@ It is possible to have multiple, independent conversations with the same agent i
 
 ```python
 async def main():
-    thread1 = agent.get_new_thread()b
+    thread1 = agent.get_new_thread()
     thread2 = agent.get_new_thread()
 
     result1 = await agent.run("Tell me a joke about a pirate.", thread=thread1)
@@ -66,13 +75,15 @@ async def main():
 asyncio.run(main())
 ```
 
+In this example, `thread1` and `thread2` represent two different users or conversation sessions. Each thread maintains its own independent conversation history, just as you would have separate conversations with different users in a real application.
+
 ## 📝 Lab 02 Conclusion: Multi-Turn Conversations
 
 You have successfully completed the second lab of the Microsoft Agent Framework workshop, learning how to manage stateful conversations with agents.
 
 ------
 
-#### Key Takeaways from Lab 02
+### Key Takeaways from Lab 02
 
 - **Conversation State Management:** You learned that agents are stateless and require an `AgentThread` object to maintain conversation history across multiple turns.
 - **Multi-Turn Conversations:** You implemented conversations where the agent can reference previous messages, enabling contextual responses using the `thread` parameter in `.run()` and `.run_stream()` methods.

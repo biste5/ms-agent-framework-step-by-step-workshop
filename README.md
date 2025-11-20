@@ -98,3 +98,8 @@ Here is the index for each lab:
 1. **[Lab 01 — Create and Run Your First Agent](01-first-agent/README.md)**
     *Learn how to build and run a basic conversational agent using the Microsoft Agent Framework. This foundational lab covers agent creation, basic execution, streaming responses, and multimodal communication with ChatMessage objects.*
 
+2. **[Lab 02 — Multi-Turn Conversations](02-multi-turn-conversations/README.md)**
+    *Discover how to manage stateful, multi-turn conversations with agents. Learn about AgentThread objects, conversation state management, and how to handle multiple independent conversations with a single agent instance.*
+
+3. **[Lab 03 — Function Tools](03-function-tools/README.MD)**
+    *Extend your agents with custom function tools to interact with external systems and business logic. Learn how to use the @ai_function decorator, Pydantic Field annotations, and class-based tool organization to give your agents powerful capabilities beyond conversation.*
