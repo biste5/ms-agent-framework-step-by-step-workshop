@@ -12,7 +12,7 @@ This workshop reflects the collective learnings from partner engagements across 
 
 Before you begin, ensure you have the following prerequisites:
 
-- [Python 3.10 or later](https://www.python.org/downloads/)
+- [Python 3.12](https://www.python.org/downloads/) **(recommended)** — This workshop is based on `agent-framework==1.0.0b251114`, which runs optimally with Python 3.12. While Python 3.10+ may work, Python 3.12 is strongly recommended for best compatibility.
 - [Azure OpenAI service endpoint and deployment configured](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/create-resource)
 - [Azure CLI installed](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) and [authenticated (for Azure credential authentication)](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli)
   - For [these](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively?view=azure-cli-latest#sign-in-with-a-browser) exercises this is the recommended authentication method for your CLI
@@ -53,8 +53,20 @@ Before proceeding with any lab, create a `.venv` folder in the root directory:
 
 ### 1. Create and activate the environment
 
+> [!IMPORTANT]
+>
+> **Use Python 3.12** to create the virtual environment for best compatibility with `agent-framework==1.0.0b251114`.
+
+#### **Windows:**
+
 ```
-py -m venv .venv
+py -3.12 -m venv .venv
+```
+
+#### **macOS / Linux:**
+
+```
+python3.12 -m venv .venv
 ```
 
 Activate it:
@@ -83,8 +95,10 @@ py -m pip install --upgrade pip
 
 ### 3. Install the Agent Framework package
 
+Install the specific version of the Agent Framework used in this workshop:
+
 ```
-pip install agent-framework
+pip install agent-framework==1.0.0b251114
 ```
 
 ------
