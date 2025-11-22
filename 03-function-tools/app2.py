@@ -11,20 +11,27 @@ agent = AzureOpenAIChatClient(
     endpoint=os.environ["AOAI_ENDPOINT"],
     deployment_name=os.environ["AOAI_DEPLOYMENT"]
 ).create_agent(
-    instructions="You are a helpful weather assistant. You don't give additional help.",
-    tools=[tools.get_weather, tools.get_max_temperature]  
+    instructions="You are a concise weather assistant. Call the right tool and respond with the tool output only.",
+    tools=[tools.get_weather, tools.get_max_temperature]
 )
 
 
-async def main():
-    # Test both tools
-    result1 = await agent.run("What is the instant weather in Amsterdam?")
-    print("Basic weather query:")
-    print(result1.text)
-    print("\n" + "="*50 + "\n")
-    
-    result2 = await agent.run("What is the maximum temperature expected today in Tokyo?")
-    print("Maximum temperature query:")
-    print(result2.text)
+async def main() -> None:
+    print("=== Lab 03: Function Tools (class-based) ===")
+    print("Ask about current weather or maximum temperatures. Type 'exit' to quit.\n")
 
-asyncio.run(main())
+    while True:
+        question = input("Weather assistant question: ").strip()
+        if question.lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
+        if not question:
+            print("Question cannot be empty.\n")
+            continue
+
+        result = await agent.run(question)
+        print(f"\nAgent: {result.text}\n")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

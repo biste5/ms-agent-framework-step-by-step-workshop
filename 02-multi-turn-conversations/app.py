@@ -8,26 +8,59 @@ agent = AzureOpenAIChatClient(
     endpoint=os.environ["AOAI_ENDPOINT"],
     deployment_name=os.environ["AOAI_DEPLOYMENT"]
 ).create_agent(
-    instructions="You are good at telling jokes.",
-    name="Joker"
+    instructions="You are a helpful conversation coach who keeps context between turns.",
+    name="Conversationalist"
 )
 
-thread = agent.get_new_thread()
+threads: dict[str, object] = {}
 
-async def main():
-    thread1 = agent.get_new_thread()
-    thread2 = agent.get_new_thread()
 
-    result1 = await agent.run("Tell me a joke about a pirate.", thread=thread1)
-    print(result1.text)
+def get_thread(session_id: str):
+    if session_id not in threads:
+        threads[session_id] = agent.get_new_thread()
+        print(f"Created new conversation '{session_id}'.")
+    return threads[session_id]
 
-    result2 = await agent.run("Tell me a joke about a robot.", thread=thread2)
-    print(result2.text)
 
-    result3 = await agent.run("Now add some emojis to the joke and tell it in the voice of a pirate's parrot.", thread=thread1)
-    print(result3.text)
+def list_sessions() -> None:
+    if not threads:
+        print("No active conversations yet. Start typing to create one.\n")
+        return
+    print("Active conversations:")
+    for name in threads:
+        print(f"- {name}")
+    print()
 
-    result4 = await agent.run("Now add some emojis to the joke and tell it in the voice of a robot.", thread=thread2)
-    print(result4.text)
 
-asyncio.run(main())
+async def main() -> None:
+    print("=== Lab 02: Multi-Turn Conversations ===")
+    print("Type a conversation name to route messages to that thread.")
+    print("Commands: 'list' to show sessions, 'exit' to quit.\n")
+
+    while True:
+        session_id = input("Conversation id [default=general]: ").strip()
+        if not session_id:
+            session_id = "general"
+
+        if session_id.lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
+        if session_id.lower() == "list":
+            list_sessions()
+            continue
+
+        prompt = input("User message: ").strip()
+        if prompt.lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
+        if not prompt:
+            print("Message cannot be empty.\n")
+            continue
+
+        thread = get_thread(session_id)
+        result = await agent.run(prompt, thread=thread)
+        print(f"\n[{session_id}] {result.text}\n")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

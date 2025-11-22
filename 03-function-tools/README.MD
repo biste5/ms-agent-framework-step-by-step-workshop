@@ -59,35 +59,25 @@ If you don't specify the `name` and `description` parameters in the `ai_function
 When creating the agent, you can now provide the function tool to the agent, by passing it to the `tools` parameter. Don't forget to import the function at the top of your `app.py` file, so the agent can use it.
 
 ```python
-import asyncio
-from agent_framework.azure import AzureOpenAIChatClient
-from azure.identity import AzureCliCredential
-from function_tools import get_weather
-
-agent = AzureOpenAIChatClient(
-    credential=AzureCliCredential(),
-    endpoint="[YOUR_ENDPOINT]",
-    deployment_name="[YOUR_DEPLOYMENT_NAME]"
-).create_agent(
-    instructions="You are a helpful assistant",
-    tools=[get_weather]  
+agent = AzureOpenAIChatClient(...).create_agent(
+    instructions="You are a helpful assistant who calls tools when needed.",
+    tools=[get_weather]
 )
 
-```
-
-Now you can just run the agent as normal, and the agent will be able to call the `get_weather` function tool when needed.
-
-Python
-
-```python
-async def main():
-    result = await agent.run("What is the weather like in Amsterdam?")
-    print(result.text)
+async def main() -> None:
+    while True:
+        question = input("Weather question: ").strip()
+        if question.lower() in {"exit", "quit"}:
+            break
+        if not question:
+            continue
+        result = await agent.run(question)
+        print(result.text)
 
 asyncio.run(main())
 ```
 
-You can find the complete code for this lab in the [`app.py`](app.py) and [`function_tools.py`](function_tools.py) files.
+Run it with `python 03-function-tools/app.py`. Because the CLI keeps the process alive, you can test multiple prompts back-to-back and observe when the agent chooses to call the `get_weather` tool.
 
 
 
@@ -118,42 +108,28 @@ class WeatherTools:
         return f"The maximum temperature expected in {location} today is 22°C."
 ```
 
-When creating the agent, you can now provide all the methods of the class as functions:
+When creating the agent, you can now provide all the methods of the class as functions. [`app2.py`](app2.py) keeps both methods active in an interactive CLI:
 
 ```python
-import asyncio
-from agent_framework.azure import AzureOpenAIChatClient
-from azure.identity import AzureCliCredential
-from weather_tools import WeatherTools
-
-tools = WeatherTools()
-
-agent = AzureOpenAIChatClient(
-    credential=AzureCliCredential(),
-    endpoint="[YOUR_ENDPOINT]",
-    deployment_name="[YOUR_DEPLOYMENT_NAME]"
-).create_agent(
-    instructions="You are a helpful weather assistant. You don't give additional help.",
-    tools=[tools.get_weather, tools.get_max_temperature]  
+agent = AzureOpenAIChatClient(...).create_agent(
+    instructions="You are a concise weather assistant. Call the right tool and respond with the tool output only.",
+    tools=[tools.get_weather, tools.get_max_temperature]
 )
 
-
-async def main():
-    # Test both tools
-    result1 = await agent.run("What is the instant weather in Amsterdam?")
-    print("Basic weather query:")
-    print(result1.text)
-    print("\n" + "="*50 + "\n")
-    
-    result2 = await agent.run("What is the maximum temperature expected today in Tokyo?")
-    print("Maximum temperature query:")
-    print(result2.text)
+async def main() -> None:
+    while True:
+        question = input("Weather assistant question: ").strip()
+        if question.lower() in {"exit", "quit"}:
+            break
+        if not question:
+            continue
+        result = await agent.run(question)
+        print(result.text)
 
 asyncio.run(main())
 ```
-You can also decorate the functions with the same `ai_function` decorator as before.
 
-Find the complete code for this example in the [`app2.py`](app2.py) and [`weather_tools.py`](weather_tools.py) files.
+Run `python 03-function-tools/app2.py` and alternate between “current weather” and “maximum temperature” prompts to see the agent dynamically choose the right method from `WeatherTools`.
 
 ## 📝 Lab 03 Conclusion: Function Tools with Agents
 
@@ -177,8 +153,8 @@ This knowledge of function tools prepares you for building more sophisticated ag
 
 The complete code implementations for this lab can be found in the repository:
 
-- **[`app.py`](app.py)** and **[`function_tools.py`](function_tools.py):** Basic single-function tool example
-- **[`app2.py`](app2.py)** and **[`weather_tools.py`](weather_tools.py):** Class-based multiple function tools example
+- **[`app.py`](app.py)** and **[`function_tools.py`](function_tools.py):** Interactive single-function tool example
+- **[`app2.py`](app2.py)** and **[`weather_tools.py`](weather_tools.py):** Interactive class-based multi-tool example
 
 ------
 

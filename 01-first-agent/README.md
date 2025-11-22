@@ -21,49 +21,75 @@ Now, within the 01-first-agent create the file app.py.
 - Then, create the agent, providing instructions and a name for the agent.
 
 ```python
-import asyncio
+import os
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import AzureCliCredential
 
 agent = AzureOpenAIChatClient(
     credential=AzureCliCredential(),
-    endpoint="[YOUR_ENDPOINT_NAME]",
-    deployment_name="[YOUR_DEPLOYMENT_NAME]"
+    endpoint=os.environ["AOAI_ENDPOINT"],
+    deployment_name=os.environ["AOAI_DEPLOYMENT"]
 ).create_agent(
-    instructions="You are good at telling jokes.",
+    instructions="You are good at telling tales.",
     name="Joker"
 )
 ```
 
-## 3. Running the agent
+## 3. Running the agent interactively
 
-To run the agent, call the `run` method on the agent instance, providing the user input. The agent will return a response object, and accessing the `.text` property provides the text result from the agent.
+`app.py` now ships with a small CLI so you can try multiple prompts without editing the file. Option **1** performs a regular `agent.run(...)` call and prints the full response once it is ready.
 
 ```python
-async def main():
-    result = await agent.run("Tell me a joke about a pirate.")
-    print(result.text)
+async def run_basic(prompt: str) -> None:
+    result = await agent.run(prompt)
+    print(f"\nAgent: {result.text}\n")
 
-asyncio.run(main())
+async def main() -> None:
+    while True:
+        mode = input("Mode ([1] basic, [2] streaming): ").strip().lower()
+        ...
+        if mode in {"1", "basic"}:
+            await run_basic(prompt)
 ```
+
+Run it with:
+
+```bash
+python 01-first-agent/app.py
+```
+
+Example session:
+
+```
+Mode ([1] basic, [2] streaming): 1
+Enter your prompt: Tell me a joke about a pirate
+
+Agent: Why did the pirate go on vacation? He needed some arrrrr and relaxation.
+```
+
+Type `exit` at either prompt to stop the loop.
 
 ## 4. Running the agent with streaming
 
-Observe how easy is to run the agent with streaming with the agent framework: call the `run_stream` method on the agent instance, providing the user input. The agent will stream a list of update objects, and accessing the `.text` property on each update object provides the part of the text result contained in that update. 
-
-For you to notice the streaming, change the `instructions` to: `"You are good at telling tales."` and the prompt to `"Tell me a tale about a pirate"`
+Choose option **2** (or type `stream` / `streaming`) in the same CLI to observe token-by-token output. Behind the scenes the helper below calls `agent.run_stream(...)` and prints each update as it arrives.
 
 ```python
-async def main():
-    async for update in agent.run_stream("Tell me a tale about a pirate."):
+async def run_streaming(prompt: str) -> None:
+    print("\nAgent (streaming): ", end="", flush=True)
+    async for update in agent.run_stream(prompt):
         if update.text:
             print(update.text, end="", flush=True)
-    print()  # New line after streaming is complete
-
-asyncio.run(main())
+    print("\n")
 ```
 
-You will see the streaming in action!
+```
+Mode ([1] basic, [2] streaming): 2
+Enter your prompt: Tell me a tale about a pirate
+
+Agent (streaming): Once upon a tide... <tokens continue to stream>
+```
+
+This interactive approach lets you switch between blocking and streaming runs without changing any code.
 
 ## 5. Running the agent with a ChatMessage: The Power of Structured Multimodal Messages
 
@@ -92,24 +118,35 @@ This code illustrates how `ChatMessage` allows the agent to process both a textu
 ```python
 from agent_framework import ChatMessage, TextContent, UriContent, Role
 
-message = ChatMessage(
-    # The message is from the user
-    role=Role.USER, 
-    contents=[
-        # The text part of the request
-        TextContent(text="Tell me a joke about this image?"),
-        # The image part of the request, referenced by a URI
-        UriContent(uri="[https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg](https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg)", media_type="image/jpeg")
-    ]
-)
+DEFAULT_IMAGE = "https://www.fotosanimales.es/wp-content/uploads/2017/12/pinguino.jpg"
+DEFAULT_PROMPT = "Tell me a joke about this image."
 
-async def main():
-    # The agent receives the question AND the image together
-    result = await agent.run(message) 
-    print(result.text) 
+
+def build_message(image_url: str) -> ChatMessage:
+    contents = [TextContent(text=DEFAULT_PROMPT)]
+    contents.append(UriContent(uri=image_url, media_type="image/jpeg"))
+    return ChatMessage(role=Role.USER, contents=contents)
+
+
+async def main() -> None:
+    print(f"Default image URL: {DEFAULT_IMAGE}\n")
+    while True:
+        image_url = input("Image URL [Enter for default]: ").strip()
+        if image_url.lower() in {"exit", "quit"}:
+            break
+        if not image_url:
+            image_url = DEFAULT_IMAGE
+            print(f"Using default image: {DEFAULT_IMAGE}")
+
+        message = build_message(image_url)
+        result = await agent.run(message)
+        print(f"\nAgent: {result.text}\n")
+
 
 asyncio.run(main())
 ```
+
+Run `python 01-first-agent/app-chat-message.py`, paste any image URL (or press Enter to reuse the default penguin photo that the script displays), and type `exit` when finished.
 
 ## 📝 Lab 01 Conclusion: Your First Agent
 
@@ -132,8 +169,8 @@ This initial agent serves as the basic building block for all subsequent, more c
 
 The complete code implementations for this lab can be found in the repository:
 
-- **[`app.py`](app.py):** Contains the basic agent creation, the `.run()` example, and the `.run_stream()` example (Steps 2, 3, and 4).
-- **[`app_multimodal.py`](app_multimodal.py):** Contains the advanced example demonstrating the use of `ChatMessage` for multimodal input (Step 5).
+- **[`app.py`](app.py):** Interactive CLI that lets you switch between basic `.run()` calls and streaming responses (Steps 2–4).
+- **[`app-chat-message.py`](app-chat-message.py):** Interactive ChatMessage sample that accepts custom text plus an optional image URL (Step 5).
 
 ------
 
