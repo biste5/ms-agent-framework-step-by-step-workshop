@@ -186,7 +186,7 @@ The complete code implementations for this lab can be found in the repository:
 
 - **[⬅️ Back: Lab 02 — Multi-Turn Conversations](../02-multi-turn-conversations/README.md)** — Return to the previous lab
 - **[🏠 Back to Workshop Home](../README.md)** — Return to the main workshop page and prerequisites
-- **[➡️ Next: Lab 04 — Advanced Agent Patterns](../04-advanced-patterns/README.md)** — Continue to the next lab on advanced agent patterns
+- **[➡️ Next: Lab 04 — Human-in-the-loop Approvals](../04-human-in-loop/README.md)** — Learn how to require human approvals before high-impact tool calls
 
 ------
 

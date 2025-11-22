@@ -189,6 +189,6 @@ You now have an agent that emits typed JSON artifacts regardless of whether you 
 
 - **[⬅️ Back: Lab 04 — Human-in-the-loop Approvals](../04-human-in-loop/README.md)** — Review approval workflows for high-impact tools.
 - **[🏠 Back to Workshop Home](../README.md)** — Return to prerequisites and the complete lab index.
-- **[➡️ Next: Lab 06 — Advanced Agent Telemetry](../06-advanced-telemetry/README.md)** — Continue with observability patterns (placeholder for upcoming content).
+- **[➡️ Next: Lab 06 — Agent as Tool Composition](../06-agent-as-tool/README.md)** — Explore how to wrap a specialized agent as a reusable tool and compare direct vs tool-mediated responses.
 
 ------

@@ -4,7 +4,7 @@ from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import AzureCliCredential
 from tools import get_weather
 
-# Weather-focused agent that owns the get_weather tool and speaks in neutral English
+# Weather-focused agent identical to the default sample
 weather_agent = AzureOpenAIChatClient(
     credential=AzureCliCredential(),
     endpoint=os.environ["AOAI_ENDPOINT"],
@@ -16,19 +16,26 @@ weather_agent = AzureOpenAIChatClient(
     tools=get_weather,
 )
 
-# Orchestrator agent that invokes WeatherAgent as a tool and answers in French
+# Convert agent to tool with custom metadata so the orchestrator exposes richer docs
+weather_tool = weather_agent.as_tool(
+    name="WeatherLookup",
+    description="Look up weather information for any location",
+    arg_name="query",
+    arg_description="The weather query or location",
+)
+
 main_agent = AzureOpenAIChatClient(
     credential=AzureCliCredential(),
     endpoint=os.environ["AOAI_ENDPOINT"],
     deployment_name=os.environ["AOAI_DEPLOYMENT"]
 ).create_agent(
     instructions="You are a helpful assistant who responds in French.",
-    tools=weather_agent.as_tool(),
+    tools=weather_tool,
 )
 
 
 async def compare_agents(location: str) -> None:
-    """Show the difference between a direct WeatherAgent call and the tool-based invocation."""
+    """Show the difference between direct and tool-mediated weather answers."""
 
     question = f"What is the weather like in {location}?"
 
@@ -37,13 +44,13 @@ async def compare_agents(location: str) -> None:
     print(direct_response.text)
 
     tool_response = await main_agent.run(question)
-    print("\n[MainAgent using WeatherAgent as a tool]")
+    print("\n[MainAgent using WeatherLookup tool]")
     print(tool_response.text)
 
 
 async def main() -> None:
-    print("=== Agent as Tool Lab ===")
-    print("Compare WeatherAgent's direct response with MainAgent calling it as a tool (type 'exit' to stop).\n")
+    print("=== Agent as Tool (custom metadata) ===")
+    print("Compare direct WeatherAgent answers with the WeatherLookup tool (type 'exit' to stop).\n")
 
     while True:
         location = input("City or country: ").strip()

@@ -106,6 +106,6 @@ The complete code implementation for this lab can be found in the repository:
 
 - **[⬅️ Back: Lab 01 — Create and Run Your First Agent](../01-first-agent/README.md)** — Return to the previous lab
 - **[🏠 Back to Workshop Home](../README.md)** — Return to the main workshop page and prerequisites
-- **[➡️ Next: Lab 03 — Agent Tools and Function Calling](../03-agent-tools/README.md)** — Continue to the next lab on integrating tools with agents
+- **[➡️ Next: Lab 03 — Function Tools](../03-function-tools/README.md)** — Continue to the next lab where you extend agents with custom function tools
 
 ------

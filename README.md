@@ -148,3 +148,6 @@ Here is the index for each lab:
 
 5. **[Lab 05 — Structured Output](05-structured-output/README.md)**
     *Collect strongly typed JSON from your agents using Pydantic response schemas. Compare blocking and streaming executions, aggregate streaming deltas with `AgentRunResponse.from_agent_response_generator`, and surface the results in an interactive console app.*
+
+6. **[Lab 06 — Agent as Tool Composition](06-agent-as-tool/README.md)**
+    *Learn how to wrap a specialized agent as a reusable tool, compare direct vs tool-mediated responses, and customize tool metadata (name, description, argument labels) before wiring it into another agent’s toolset.*

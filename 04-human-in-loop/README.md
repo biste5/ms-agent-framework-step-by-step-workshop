@@ -209,7 +209,7 @@ This pattern is the foundation for any scenario where humans must stay in the lo
 
 - **[⬅️ Back: Lab 03 — Function Tools](../03-function-tools/README.MD)** — Review tool creation and class-based patterns.
 - **[🏠 Back to Workshop Home](../README.md)** — Return to prerequisites and lab index.
-- **[➡️ Next: Lab 05 — Advanced Agent Patterns](../05-advanced-agent-patterns/README.md)** — Continue into multi-step orchestration and escalation flows.
+- **[➡️ Next: Lab 05 — Structured Output](../05-structured-output/README.md)** — Learn how to collect strongly typed JSON responses from your agents.
 
 ------
 
