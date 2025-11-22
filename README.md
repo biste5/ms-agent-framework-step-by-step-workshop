@@ -117,3 +117,6 @@ Here is the index for each lab:
 
 3. **[Lab 03 — Function Tools](03-function-tools/README.MD)**
     *Extend your agents with custom function tools to interact with external systems and business logic. Learn how to use the @ai_function decorator, Pydantic Field annotations, and class-based tool organization to give your agents powerful capabilities beyond conversation.*
+
+4. **[Lab 04 — Human-in-the-loop Approvals](04-human-in-loop/README.md)**
+    *Keep humans in control of high-impact actions. Build a stateful `ChatAgent`, capture multiple approval requests per turn using `ChatMessage`, and resume tool execution safely with `prior_run` once each decision is collected.*

@@ -1,14 +1,36 @@
-# Lab04 - Human in the loop
+# Lab 04 — Human-in-the-loop approvals
 
-This lab shows you how to use function tools that require human approval with an agent.
+In this lab you extend your agent with tools that have real-world impact. Some operations, like sending money, must be reviewed by a human before the agent is allowed to execute them. The Agent Framework surfaces these approval requirements, lets you gather the user’s decision, and then resume the agent flow with the additional input.
 
-When agents require any user input, for example to approve a function call, this is referred to as a human-in-the-loop pattern. An agent run that requires user input, will complete with a response that indicates what input is required from the user, instead of completing with a final answer. The caller of the agent is then responsible for getting the required input from the user, and passing it back to the agent as part of a new agent run.
+You will build an interactive console application that:
 
-## Create the agent with function tools requiring approval
+- registers multiple banking tools (balance inquiries and payments)
+- keeps a running conversation with `ChatAgent`
+- detects every approval request the model issues
+- gathers one approval response per function call
+- sends all approvals back in a single follow-up run tied to the previous output
 
-When using functions, it's possible to indicate for each function, whether it requires human approval before being executed. This is done by setting the `approval_mode` parameter to `"always_require"` when using the `@ai_function` decorator.
+> [!TIP]
+> Approval requests often arrive in groups (for example, the model may try to call more than one tool in the same turn). The code you will write handles any number of requests safely.
 
-Here is an example of a function tool that submits a payment to an external system. Because this operation has financial impact, it is configured so that it always requires human approval before being executed by the agent. To keep this lab organized, you should create a new file named [`payment_functions.py`](payment_functions.py) in this same folder, where you will place the full implementation of the payment function tool used in this example. The agent in this lab will reference that file when invoking operations that require explicit human approval.
+------
+
+## Why `ChatAgent` instead of the earlier helpers?
+
+Labs 01–03 relied on **single-run convenience helpers**: you instantiated a lightweight agent, issued a single request, and immediately discarded the state. That approach is perfect for demos, but it breaks down when you need:
+
+- **Persistent memory** so every turn shares the same conversation context and tool plan.
+- **Centralized tool governance** (registration, approval policies, and diagnostics) for an entire session.
+- **Lifecycle hooks** that keep long-running threads, streaming callbacks, or background work alive between turns.
+- **Human approvals** that can pause a run, wait on input, and then resume exactly where the model left off.
+
+`ChatAgent` is the framework’s stateful orchestration surface. It keeps the thread, tool catalog, and model configuration alive until you decide to shut it down. That is why this lab—and any other workflow that mixes tools, memory, and human approvals—should be built on `ChatAgent` rather than the one-shot helper APIs from earlier labs.
+
+------
+
+## 1. Function tools with approval requirements
+
+Create a file named [`bank_functions.py`](bank_functions.py) that contains the tools your agent can call. Use the `@ai_function` decorator to specify metadata. Setting `approval_mode="always_require"` marks a tool as high risk: the agent must stop and ask the user before executing it.
 
 ```python
 from typing import Annotated
@@ -18,101 +40,171 @@ from agent_framework import ai_function
 def submit_payment(
     amount: Annotated[float, "Payment amount in USD"],
     recipient: Annotated[str, "Recipient name or vendor ID"],
-    reference: Annotated[str, "Short description for the payment reference"],
+    reference: Annotated[str, "Payment memo or invoice reference"],
 ) -> str:
-    """
-    Submit a payment request to the external payments system.
-
-    This operation has financial impact and should always be reviewed
-    and approved by a human before it is executed.
-    """
-    # In a real scenario this would call an external payments API.
-    # Here we just simulate the side effect.
     return (
         f"Payment of ${amount:.2f} to '{recipient}' has been submitted "
         f"with reference '{reference}'."
     )
 
+@ai_function()
+def get_account_balance(
+    account_id: Annotated[str, "Internal account identifier"],
+) -> str:
+    return f"Account {account_id} currently holds $9,876.54."
 ```
 
-When creating the agent, you can now provide the approval requiring function tool to the agent, by passing a list of tools to the `ChatAgent` constructor.
-
-## Introducing the ChatAgent
-
-In previous labs you worked with the Agent Framework using simpler execution patterns, where the agent was instantiated ad-hoc and runs were executed directly using helper functions or high-level wrappers. Those approaches are great for getting started, but they do not maintain long-lived conversational state, do not manage resources automatically, and do not provide a built-in lifecycle for tools or streaming.
-
-The **`ChatAgent`** class is the more structured and stateful way to work with agents in the framework. It:
-
-- keeps the conversation history internally
-- manages tool registration and availability
-- integrates cleanly with function tools (including those requiring approval)
-- provides a context-manager (`async with`) lifecycle
-- maintains a persistent agent identity (`name`, `instructions`, `memory`, etc.)
-- allows multiple runs while keeping state consistent
-
-In other words, while earlier labs focused on simple single-shot agent runs, `ChatAgent` represents a full conversational agent instance**, capable of tools, approvals, and complex multi-turn flows.
-
-## OpenAIResponsesClient
-
-In previous labs, you interacted with the Agent Framework using simplified helper functions that hid the underlying model client. In this lab, however, you instantiate a `ChatAgent` directly, and that requires providing an explicit chat client implementation. The `OpenAIResponsesClient` is the model client that enables the agent to communicate with Azure OpenAI or OpenAI-compatible inference services using the framework’s unified chat protocol. By importing it from `agent_framework.openai`, you make it available as the backend that the agent will use to generate responses, execute tools, and handle function approval flows. This is why the import appears now, even though earlier labs did not need it explicitly.
+- `submit_payment` is approval-gated because it moves money.
+- `get_account_balance` is informational only and can run immediately.
 
 ------
 
-## Creating an agent that uses approval-requiring tools
+## 2. Instantiating a stateful `ChatAgent`
 
-Now that you have a function tool that requires explicit human approval, you can pass it to the agent by including it in the `tools` list of the `ChatAgent` constructor. This makes the tool available to the agent, but also ensures that the agent will request human approval whenever it needs to invoke that function.
-
-Let's add the `app.py` to create an agent using the `ChatAgent` class together with function tools—some of which may require human approval:
+With the tools defined, wire them into `ChatAgent`. This lab uses `AzureOpenAIChatClient` with `AzureCliCredential` so the same authentication flow you configured in earlier labs is reused.
 
 ```python
-from agent_framework import ChatAgent
-from agent_framework.openai import OpenAIResponsesClient
-from payment_functions import submit_payment  # Your approval-required tool
-
 agent = ChatAgent(
     chat_client=AzureOpenAIChatClient(
         credential=AzureCliCredential(),
-    	endpoint="[YOUR_ENDPOINT]",
-    	deployment_name="[YOUR_DEPLOYMENT_NAME]"
+        endpoint="https://warstandalone.openai.azure.com/",
+        deployment_name="dep-gpt-5-mini"
     ),
     name="FinanceAgent",
-    instructions="You assist users with financial operations and provide clear explanations.",
-    tools=[submit_payment],
+    instructions=(
+        "You are an agent from Contoso Bank. You assist users with financial operations "
+        "and provide clear explanations. For transfers only amount, recipient name, and reference are needed."
+    ),
+    tools=[submit_payment, get_account_balance],
 )
-
 ```
 
-Since you now have a function that requires approval, the agent might respond with a request for approval, instead of executing the function directly and returning the result. You can check the response for any user input requests, which indicates that the agent requires user approval for a function.
+Key points:
+
+- The agent holds onto a conversation thread (`agent.get_new_thread()`), so every turn references the same context.
+- Passing both tools lets the model decide whether it needs balances or payments (and request approval when required).
+
+------
+
+## 3. Running the interactive console loop
+
+`app.py` starts by creating a thread, greeting the user, and then blocking for console input. Each line the user types is sent through `agent.run(...)`:
 
 ```python
-result = await agent.run(
-    "Send a payment of 250 dollars to ACME Supplies with reference 'January invoice'."
-)
+while True:
+    user_input = input("You: ").strip()
+    if user_input.lower() in ("exit", "quit"):
+        break
+    if not user_input:
+        continue
 
-# Since `submit_payment` always requires approval,
-# the agent may respond with a user_input_request instead
-# of executing the function immediately.
+    result = await agent.run(user_input, thread=thread)
+```
+
+- Typing `exit` or `quit` ends the loop.
+- Blank lines are ignored to keep the conversation clean.
+- Every run references the same thread so the agent keeps its memory and tool plan.
+
+------
+
+## 4. Handling one or many approval requests
+
+When the model decides to call an approval-gated tool, the run returns one `FunctionApprovalRequestContent` per call in `result.user_input_requests`. The sample inspects every request, presents the function call to the human, and collects a yes/no decision.
+
+```python
 if result.user_input_requests:
-    request = result.user_input_requests[0]
+    approval_messages: list[ChatMessage] = []
+    for req in result.user_input_requests:
+        print(f"- Function: {req.function_call.name}")
+        print(f"  Arguments: {req.function_call.arguments}")
+        approved = input("Approve ... (yes/no): ").strip().lower() == "yes"
+        approval_messages.append(
+            ChatMessage(role=Role.USER, contents=[req.create_response(approved)])
+        )
+```
 
-    print("=== Approval Required ===")
-    print(f"Function: {request.function_call.name}")
-    print(f"Arguments: {request.function_call.arguments}")
+- `req.create_response(True)` embeds the approval decision inside a message the agent framework understands.
+- The code builds one `ChatMessage` per request so all approvals stay tied to the right function call.
 
-    # In a real application you would ask the end user for explicit approval.
-    # For this lab, we simulate that step with a simple input prompt.
-    approval = input("Do you approve this payment? (yes/no): ")
+------
 
-    if approval.lower() == "yes":
-        # Resume the agent by providing the required user input
-        # and referencing the prior run, so the agent continues the same flow.
-        followup = await agent.run(user_input=approval, prior_run=result)
+### What exactly is `ChatMessage`?
 
-        print("=== Final result ===")
-        print(followup.output_text)
-    else:
-        print("Payment was not approved.")
+`ChatMessage` is the strongly typed envelope the Agent Framework uses to move information between the human, the agent, and the model. Each message contains:
 
+- a `role` (`Role.USER`, `Role.ASSISTANT`, or `Role.TOOL`) so the model knows who is “speaking”; and
+- a `contents` list with structured parts—plain text, images, or special objects such as the approval payload returned by `req.create_response(...)`.
+
+Because approvals must be explicitly tied to the original tool call, we instantiate a new `ChatMessage` for every decision and drop the `req.create_response(...)` result into its `contents`. When we pass that array of messages back to `agent.run(...)`, the framework can replay the human’s decisions verbatim into the model conversation and safely continue execution.
+
+------
+
+## 5. Resuming the agent with `prior_run`
+
+Once every approval decision is captured, the app sends them back to the agent in a single follow-up call. Passing `prior_run=result` informs the framework that these approvals correspond to the earlier tool proposals.
+
+```python
+followup = await agent.run(approval_messages, thread=thread, prior_run=result)
+print("\nAgent:", followup.text)
+```
+
+- If the user approves the operation, the agent executes the tool and responds with the confirmation string returned by the function.
+- If the user rejects any call, the agent is told about the denial and can explain that the payment was cancelled.
+
+------
+
+## 6. Putting it all together
+
+Run the lab with:
+
+```bash
+python 04-human-in-loop/app.py
+```
+
+Sample interaction:
 
 ```
+You: please pay $1250 to Fabrikam for invoice 8831
+
+=== APPROVALS REQUIRED ===
+- Function: submit_payment
+  Arguments: {"amount": 1250.0, "recipient": "Fabrikam", "reference": "invoice 8831"}
+Approve 'submit_payment'? (yes/no): yes
+
+Agent: Payment of $1250.00 to 'Fabrikam' has been submitted with reference 'invoice 8831'.
+```
+
+------
+
+## 📝 Lab 04 Conclusion: Human-in-the-loop Approvals
+
+You now have an agent that can safely execute high-impact tools only after a human explicitly approves each call. This mirrors real banking review flows while still letting the model plan, reason, and call multiple tools per turn.
+
+------
+
+#### Key Takeaways from Lab 04
+
+- **`ChatAgent` unlocks full sessions:** Unlike the single-run helpers from previous labs, `ChatAgent` keeps memory, tool catalog, and lifecycle hooks alive for the entire console session—essential for human approvals.
+- **Approval-aware tools are first-class:** Decorating tools with `approval_mode="always_require"` lets the framework pause execution automatically whenever the model proposes risky actions.
+- **`ChatMessage` carries structured intent:** Wrapping each approval decision inside a `ChatMessage` keeps the association between a user’s decision and the exact function call the model proposed.
+- **`prior_run` resumes safely:** By referencing the earlier run when sending approvals, the agent continues exactly where it paused, producing fluent follow-up responses.
+
+This pattern is the foundation for any scenario where humans must stay in the loop—payments, policy updates, infrastructure changes, or other sensitive business operations.
+
+------
+
+### Code Reference
+
+- [`app.py`](app.py) — interactive console agent that aggregates approvals before resuming the run.
+- [`bank_functions.py`](bank_functions.py) — tool definitions for `submit_payment` (approval required) and `get_account_balance` (informational).
+
+------
+
+## 🔗 Navigation
+
+- **[⬅️ Back: Lab 03 — Function Tools](../03-function-tools/README.MD)** — Review tool creation and class-based patterns.
+- **[🏠 Back to Workshop Home](../README.md)** — Return to prerequisites and lab index.
+- **[➡️ Next: Lab 05 — Advanced Agent Patterns](../05-advanced-agent-patterns/README.md)** — Continue into multi-step orchestration and escalation flows.
+
+------
 
