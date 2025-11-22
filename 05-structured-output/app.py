@@ -1,3 +1,4 @@
+import os
 import asyncio
 from agent_framework import AgentRunResponse
 from agent_framework.azure import AzureOpenAIChatClient
@@ -9,8 +10,8 @@ def build_agent():
     """Instantiate a ChatAgent configured for PersonInfo extraction."""
     return AzureOpenAIChatClient(
         credential=AzureCliCredential(),
-        endpoint="https://warstandalone.openai.azure.com/",
-        deployment_name="dep-gpt-5-mini"
+        endpoint=os.environ["AOAI_ENDPOINT"],
+        deployment_name=os.environ["AOAI_DEPLOYMENT"]
     ).create_agent(
         name="HelpfulAssistant",
         instructions=(

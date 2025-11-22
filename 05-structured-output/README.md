@@ -41,6 +41,7 @@ Below is how `app.py` is organized. Each logical unit maps directly to a functio
 This block centralizes every dial that defines how the agent talks to Azure OpenAI. By creating a helper that returns a fully configured `ChatAgent`, you isolate endpoint, deployment, name, and instructions in a single place, making it trivial to reuse or swap environments without touching the rest of the workflow.
 
 ```python
+import os
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import AzureCliCredential
 
@@ -48,8 +49,8 @@ from azure.identity import AzureCliCredential
 def build_agent():
     return AzureOpenAIChatClient(
         credential=AzureCliCredential(),
-        endpoint="https://warstandalone.openai.azure.com/",
-        deployment_name="dep-gpt-5-mini"
+        endpoint=os.environ["AOAI_ENDPOINT"],
+        deployment_name=os.environ["AOAI_DEPLOYMENT"]
     ).create_agent(
         name="HelpfulAssistant",
         instructions=(

@@ -29,11 +29,36 @@ Before you begin, ensure you have the following prerequisites:
 
 ## Prepare Environment
 
+### Required environment variables
+
+Every lab expects two environment variables to be present before you run any script:
+
+- `AOAI_ENDPOINT` — the base URL of the Azure OpenAI resource you created in the prerequisites (for example, `https://contoso-openai.openai.azure.com/`). You can copy this value from the **Keys and Endpoint** blade of the Azure OpenAI resource in the Azure portal.
+- `AOAI_DEPLOYMENT` — the name of the chat completion deployment (for example, `dep-gpt-5-mini`) that you provisioned when setting up Azure OpenAI. Use the deployment name from the **Deployments** tab of the same resource.
+
+Set the variables once and they will be reused by every lab. Example commands:
+
+```powershell
+# PowerShell
+setx AOAI_ENDPOINT "https://<your-resource>.openai.azure.com/"
+setx AOAI_DEPLOYMENT "<your-deployment-name>"
+```
+
+```bash
+# macOS / Linux shell
+export AOAI_ENDPOINT="https://<your-resource>.openai.azure.com/"
+export AOAI_DEPLOYMENT="<your-deployment-name>"
+```
+
+Restart your terminal (or VS Code integrated terminal) after setting them so the new values are available to Python.
+
+## Folder Structure
+
 To keep the setup lightweight and avoid downloading the `agent-framework` package inside every lab folder, this workshop uses a **single shared virtual environment** created at the **root of the repository**. All lab folders (`01-first-agent`, `02-agents`, etc.) will reuse the same environment.
 
 This approach keeps installations consistent, reduces disk usage, and ensures that any updates to dependencies automatically apply across all exercises.
 
-### Create the virtual environment at the root of the repo
+## Virtual environment at the root of the repo
 
 Before proceeding with any lab, create a `.venv` folder in the root directory:
 
@@ -57,7 +82,7 @@ Before proceeding with any lab, create a `.venv` folder in the root directory:
 >
 > **Use Python 3.12** to create the virtual environment for best compatibility with `agent-framework==1.0.0b251114`.
 
-#### **Windows:**
+##### **Windows:**
 
 ```
 py -3.12 -m venv .venv

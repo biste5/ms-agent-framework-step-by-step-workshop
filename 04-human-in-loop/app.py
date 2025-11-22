@@ -1,3 +1,4 @@
+import os
 import asyncio
 from agent_framework import ChatAgent, ChatMessage, Role
 from agent_framework.azure import AzureOpenAIChatClient
@@ -8,8 +9,8 @@ from bank_functions import submit_payment, get_account_balance
 agent = ChatAgent(
     chat_client=AzureOpenAIChatClient(
         credential=AzureCliCredential(),
-        endpoint="https://warstandalone.openai.azure.com/",
-        deployment_name="dep-gpt-5-mini"
+        endpoint=os.environ["AOAI_ENDPOINT"],
+        deployment_name=os.environ["AOAI_DEPLOYMENT"]
     ),
     name="FinanceAgent",
     instructions=(

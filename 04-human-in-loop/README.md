@@ -64,11 +64,16 @@ def get_account_balance(
 With the tools defined, wire them into `ChatAgent`. This lab uses `AzureOpenAIChatClient` with `AzureCliCredential` so the same authentication flow you configured in earlier labs is reused.
 
 ```python
+import os
+from agent_framework import ChatAgent
+from agent_framework.azure import AzureOpenAIChatClient
+from azure.identity import AzureCliCredential
+
 agent = ChatAgent(
     chat_client=AzureOpenAIChatClient(
         credential=AzureCliCredential(),
-        endpoint="https://warstandalone.openai.azure.com/",
-        deployment_name="dep-gpt-5-mini"
+        endpoint=os.environ["AOAI_ENDPOINT"],
+        deployment_name=os.environ["AOAI_DEPLOYMENT"]
     ),
     name="FinanceAgent",
     instructions=(

@@ -1,11 +1,12 @@
+import os
 import asyncio
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import AzureCliCredential
 
 agent = AzureOpenAIChatClient(
     credential=AzureCliCredential(),
-    endpoint="https://warstandalone.openai.azure.com/",
-    deployment_name="dep-gpt-5-mini"
+    endpoint=os.environ["AOAI_ENDPOINT"],
+    deployment_name=os.environ["AOAI_DEPLOYMENT"]
 ).create_agent(
     instructions="You are good at telling jokes.",
     name="Joker"
