@@ -160,3 +160,6 @@ Here is the index for each lab:
 
 9. **[Lab 09 — Agents Middleware](09-agents-middleware/README.md)**
     *Add agent-level and function-level middleware to enforce logging, guardrails, or caching. Wire reusable middleware modules into Azure OpenAI agents, register tools with `ai_function`, and confirm the pipeline runs by inspecting console traces.*
+
+10. **[Lab 10 — Persisting Conversations](10-persisting-conversations/README.md)**
+    *Persist `AgentThread` state to disk, reload conversations on demand, and drive the workflow from a Windows console app with hotkeys to create, save, load, and inspect stored threads.*

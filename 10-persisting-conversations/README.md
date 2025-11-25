@@ -79,3 +79,25 @@ python app.py
 ```
 
 Type a message, use the function keys as needed, and observe how the JSON files change under `persisted_threads/`. This makes it easy to demonstrate persisting/resuming without restarting the process.
+
+------
+
+## 📝 Lab 10 Conclusion: Persistence On-Demand
+
+You built a console agent that can pause and resume any conversation by serializing `AgentThread` state to disk. With hotkeys to create, save, load, and inspect stored sessions, you can prove how Agent Framework lets you swap between multiple conversations without re-running prior prompts.
+
+------
+
+#### Key Takeaways from Lab 10
+
+- Serializing `AgentThread` gives you a complete snapshot that can be restored later with `agent.deserialize_thread`.
+- A persistent `USER>` prompt plus function-key shortcuts makes it easy to demo stateful agents in a single run.
+- Storing JSON per thread (e.g., `persisted_threads/<slug>.json`) keeps conversations portable across sessions or services.
+
+------
+
+## 🔗 Navigation
+
+- **[⬅️ Back: Lab 09 — Agents Middleware](../09-agents-middleware/README.md)** — Review how to wrap agents and tools with middleware.
+- **[🏠 Back to Workshop Home](../README.md)** — Return to the full lab index and prerequisites.
+- **[➡️ Next: Lab 11 — External Persistence](../11-external-persistence/README.md)** — Explore persisting conversation state with external data stores.
