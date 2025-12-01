@@ -1,87 +1,219 @@
-# Lab 11 — Persisting Chat History Outside the Agent Runtime
+# Lab11 - Storing Chat History in 3rd Party Storage
 
-This lab replaces the in-memory message store used by `agent_framework.ChatAgent` with a Redis-backed implementation so that conversations survive process restarts. Two files participate in the solution:
+This lab shows how to store agent chat history in external storage by implementing a custom `ChatMessageStore` and using it with a `ChatAgent`.
 
-- `11-external-persistence/redis_chat_message_store.py` — the custom `ChatMessageStore` that writes to Azure Cache for Redis.
-- `11-external-persistence/app.py` — an interactive CLI that wires the store into a `ChatAgent`, lets you chat, and resume previously saved threads.
+By default, when using `ChatAgent`, chat history is stored either in memory in the `AgentThread` object or the underlying inference service, if the service supports it.
 
-> Requirements: set `AOAI_ENDPOINT`, `AOAI_DEPLOYMENT`, and `REDIS_URL` (`rediss://:<PRIMARY_KEY>@<host>.redis.cache.windows.net:6380/0`) before running `python app.py`.
+Where services do not require or are not capable of the chat history to be stored in the service, it is possible to provide a custom store for persisting chat history instead of relying on the default in-memory behavior.
 
-## RedisChatMessageStore implementation (`redis_chat_message_store.py`)
+## Preserve chat history beyond the process
 
-### Connection and key management
+This lab needs every `AgentThread` to survive editor restarts, multiple shells, and even different machines, yet the default message store disappears as soon as the process stops. The answer is to provide an out-of-process `ChatMessageStore` so the agent can hydrate itself from durable storage regardless of where it runs. Here we implement `RedisChatMessageStore` (see [`redis_chat_message_store.py`](./redis_chat_message_store.py)), a concrete store that serializes each `ChatMessage` and appends it to a Redis list hosted in Azure Cache for Redis. The agent is instantiated with `chat_message_store_factory=RedisChatMessageStore`, so every new thread automatically receives a store that already knows the Redis URL, key prefix, and message limits. When the application restarts, we only need to create another `RedisChatMessageStore` with the same connection info and `thread_id`; the agent thread can then reload history from the Redis list and continue the conversation seamlessly. Because the state now lives outside the process, multiple shells or machines can share the exact same conversation history without any additional synchronization logic.
 
-- The constructor takes a `redis_url`, optional `thread_id`, `key_prefix`, and `max_messages` guard.
-- When no `thread_id` is provided a UUID is generated. Keys look like `lab11:thread_<guid>` so every agent thread is isolated but easy to enumerate.
-- The Redis client uses `redis.asyncio.from_url(..., decode_responses=True)` so we work with plain strings.
+### Understanding the RedisChatMessageStore implementation
 
-### Writing and trimming chat history
+`redis_chat_message_store.py` is a practical walkthrough of everything the `ChatMessageStore` protocol expects from a persistence provider. The implementation is intentionally verbose so you can see how each concern—key management, message serialization, deserialization, and resource cleanup—is handled.
+
+#### Bootstrapping the store
+
+```python
+class RedisChatMessageStore:
+	def __init__(
+		self,
+		redis_url: str | None = None,
+		thread_id: str | None = None,
+		key_prefix: str = "chat_messages",
+		max_messages: int | None = None,
+	) -> None:
+		if redis_url is None:
+			raise ValueError("redis_url is required for Redis connection")
+
+		self.redis_url = redis_url
+		self.thread_id = thread_id or f"thread_{uuid4()}"
+		self.key_prefix = key_prefix
+		self.max_messages = max_messages
+		self._redis_client = redis.from_url(redis_url, decode_responses=True)
+```
+
+The constructor validates that a connection string exists, picks or generates a `thread_id`, records the logical prefix, and creates a single Redis client that remains connected for the life of the store. The `redis_key` property simply concatenates `key_prefix` and `thread_id` so each thread is isolated inside Redis.
+
+#### Writing and trimming messages
 
 ```python
 async def add_messages(self, messages: Sequence[ChatMessage]) -> None:
-	serialized = [self._serialize_message(msg) for msg in messages]
-	await self._redis_client.rpush(self.redis_key, *serialized)
-	if self.max_messages:
-		await self._redis_client.ltrim(self.redis_key, -self.max_messages, -1)
+	if not messages:
+		return
+
+	serialized_messages = [self._serialize_message(msg) for msg in messages]
+	await self._redis_client.rpush(self.redis_key, *serialized_messages)
+
+	if self.max_messages is not None:
+		current_count = await self._redis_client.llen(self.redis_key)
+		if current_count > self.max_messages:
+			await self._redis_client.ltrim(self.redis_key, -self.max_messages, -1)
 ```
 
-- Messages are serialized through `ChatMessage.to_dict()` (with fallback logic for other shapes) and appended via `RPUSH` so Redis keeps oldest→newest order.
-- If `max_messages` is set the list is trimmed with `LTRIM` to keep only the most recent N entries.
+`add_messages` is called by the framework whenever the agent produces new content. Each `ChatMessage` is converted to JSON via `_serialize_message`, pushed to a Redis list, and optionally truncated with `LTRIM` so long-lived threads never exceed the configured retention window.
 
-### Reading chat history back
+#### Reading conversations back
 
-- `list_messages` calls `LRANGE 0 -1`, deserializes each JSON blob back into `ChatMessage` (`ChatMessage.from_dict` when available), and returns them in chronological order.
-- The CLI uses this method whenever you choose “Peek at Redis history”.
+```python
+async def list_messages(self) -> list[ChatMessage]:
+	redis_messages = await self._redis_client.lrange(self.redis_key, 0, -1)
+	messages = []
+	for serialized_message in redis_messages:
+		message = self._deserialize_message(serialized_message)
+		messages.append(message)
+	return messages
+```
 
-### Serialization hooks for AgentThread
+`list_messages` replays the Redis list in chronological order and reconstructs `ChatMessage` objects (`ChatMessage.from_dict` when available, otherwise `model_validate`). This output feeds directly into the `ChatAgent`, so you always get the same context back that you originally stored.
 
-`ChatMessageStore` implementations must serialize their configuration so an `AgentThread` can be paused/resumed. The Redis store handles that through:
+#### Persisting store metadata
 
-- `serialize_state` / `deserialize_state` — wrap the thread id, key prefix, limit, and connection string inside a `RedisStoreState` (Pydantic model). This state is what we show when you resume a thread.
-- `serialize` — the method the framework calls when persisting an `AgentThread`. We return a dict with an empty `messages` list (to satisfy the protocol) plus a `store_metadata` entry containing the data from `serialize_state`.
-- `deserialize` and `update_from_state` — rebuild the store (or update the current instance) from the `store_metadata` blob. These guard against missing `redis_url` so we fail fast if the environment is misconfigured.
+```python
+async def serialize_state(self, **kwargs: Any) -> Any:
+	state = RedisStoreState(
+		thread_id=self.thread_id,
+		redis_url=self.redis_url,
+		key_prefix=self.key_prefix,
+		max_messages=self.max_messages,
+	)
+	return state.model_dump(**kwargs)
 
-> Because Redis already contains the full transcript we never ship the raw messages back through `serialize`; only the metadata required to reconnect is stored in the thread snapshot.
+async def serialize(self, **kwargs: Any) -> dict[str, Any]:
+	state = await self.serialize_state(**kwargs)
+	return {"messages": [], "store_metadata": state}
+```
 
-## Wiring the store into the agent (`app.py`)
+The lab needs `AgentThread.serialize()` to succeed even though the real history lives in Redis. `serialize_state` and `serialize` therefore capture only the configuration needed to reconnect (thread id, key prefix, URL, limits). The message list is left empty because the canonical copy is in Redis; when a thread is restored the code constructs a new `RedisChatMessageStore` with the saved metadata.
 
-### Agent creation
+#### Rehydrating and cleaning up
+
+```python
+@classmethod
+async def deserialize(cls, serialized_store_state: Any, **kwargs: Any) -> "RedisChatMessageStore":
+	redis_state = serialized_store_state.get("store_metadata")
+	state = RedisStoreState.model_validate(redis_state, **kwargs)
+	redis_url = state.redis_url or kwargs.get("redis_url")
+	return cls(
+		redis_url=redis_url,
+		thread_id=state.thread_id,
+		key_prefix=state.key_prefix,
+		max_messages=state.max_messages,
+	)
+
+async def aclose(self) -> None:
+	await self._redis_client.aclose()
+```
+
+`deserialize` rebuilds the store with the exact same identifiers so a new process can attach to an existing Redis list. `aclose` shuts down the Redis connection when the CLI switches threads or exits. Together with `update_from_state` and `clear`, these APIs make the store plug-and-play with the framework’s lifecycle hooks.
+
+Taken as a whole, the file demonstrates how to transform the abstract `ChatMessageStore` contract into a concrete, production-ready persistence layer backed by Azure Cache for Redis. You can lift this pattern to implement other durable stores (SQL, blobs, vector DBs) by swapping out the `_redis_client` calls for the appropriate client library while keeping the same method signatures.
+
+### Walking through the interactive client (`app.py`)
+
+The CLI in [`app.py`](./app.py) stitches everything together: it instantiates the agent, wires the Redis store, and provides menu-driven flows for sending prompts, inspecting history, and loading prior threads. Understanding each section helps adapt the sample to your own agents.
+
+#### Agent and store factory
 
 ```python
 def build_agent(redis_url: str) -> ChatAgent:
 	def store_factory() -> RedisChatMessageStore:
-		return RedisChatMessageStore(redis_url=redis_url, key_prefix="lab11", max_messages=200)
+		return RedisChatMessageStore(
+			redis_url=redis_url,
+			key_prefix="lab11",
+			max_messages=200,
+		)
 
-	return ChatAgent(..., chat_message_store_factory=store_factory)
+	return ChatAgent(
+		chat_client=AzureOpenAIChatClient(...),
+		name="TravelPlanner",
+		instructions="...",
+		chat_message_store_factory=store_factory,
+	)
 ```
 
-- Every time `agent.get_new_thread()` is called the factory hands the thread a brand-new `RedisChatMessageStore` instance pointed at Azure Cache for Redis.
-- `create_thread` asserts the injected `message_store` is our Redis implementation and returns both the `AgentThread` and its store so the CLI can reuse them.
+`build_agent` captures the Redis connection string and exposes a `store_factory`. Every time the framework creates a new `AgentThread`, it calls this factory, guaranteeing that threads automatically inherit the Redis-backed persistence with the right prefix and retention. No manual plumbing is needed later in the code.
 
-### CLI flow
+#### Thread bootstrapper
 
-Running `python 11-external-persistence/app.py` launches an interactive menu:
+```python
+def create_thread(agent: ChatAgent) -> tuple:
+	thread = agent.get_new_thread()
+	store = thread.message_store
+	if not isinstance(store, RedisChatMessageStore):
+		raise RuntimeError("Thread is not using the RedisChatMessageStore...")
+	return thread, cast(RedisChatMessageStore, store)
+```
 
-1. **Send a user message** — uses `agent.run(prompt, thread=thread)`; once the assistant responds the framework calls `RedisChatMessageStore.add_messages`, which persists both user + assistant messages.
-2. **Peek at Redis history** — invokes `show_history`, which calls `store.list_messages()` and prints them using `_message_text` to unwrap `ChatMessage.contents`.
-3. **Load a saved Redis thread** — lists every Redis key with the `lab11:` prefix (via `_list_saved_thread_keys`), shows a numbered menu, and loads the chosen key:
-   - Creates a new `RedisChatMessageStore` pointed at the selected key.
-   - Creates a new `AgentThread`, swaps its `message_store` for the Redis-backed one, closes the previous store, and keeps going with the new context.
-   - Immediately calls `show_history` so you can confirm which conversation you resumed.
-4. **Start a fresh thread** — closes the active store, calls `create_thread`, and continues with a new Redis key.
-0. **Exit** — closes the Redis connection gracefully.
+`create_thread` is a small guardrail: after the agent yields a thread, it verifies the message store is indeed the Redis implementation, then returns both so the rest of the CLI can poke at Redis-specific helpers.
 
-### Why this architecture works
+#### Rendering stored conversations
 
-- Only the `ChatMessageStore` knows how to talk to Redis; `ChatAgent` simply asks it to add/list messages, so we keep a clean separation of concerns.
-- The menu-driven loader proves that thread state truly lives outside the agent process—after restarting `app.py` you can immediately pick option 3 and continue with any previous Redis key even though the Python `AgentThread` objects were recreated from scratch.
+```python
+async def show_history(store: RedisChatMessageStore) -> None:
+	messages = await store.list_messages()
+	if not messages:
+		print("Redis list is empty...")
+		return
+	for msg in messages:
+		role = msg.role.value if hasattr(msg.role, "value") else msg.role
+		print(f"- {role.upper()}: {_message_text(msg)}")
+```
 
-## Try it yourself
+`show_history` reuses the store’s `list_messages()` method and `_message_text` helper (which flattens `ChatMessage.contents` into a readable string) to display the persisted conversation. This keeps the CLI agnostic of how messages are encoded internally.
 
-1. Export the required environment variables (`AOAI_ENDPOINT`, `AOAI_DEPLOYMENT`, `REDIS_URL`).
-2. From the repo root run `python 11-external-persistence/app.py`.
-3. Use option 1 a few times so the assistant learns some facts. Exit and rerun the script.
-4. Choose option 3, pick the Redis key you just created, and verify the assistant still remembers the earlier conversation. You can continue chatting, switch to another key, or start from scratch at any time.
+#### Enumerating and loading saved threads
 
-This lab gives you a blueprint for any external persistence layer: implement the `ChatMessageStore` protocol in a file like `redis_chat_message_store.py`, wire it in with `chat_message_store_factory`, and build whatever UX you need to inspect or resume threads. Once the store speaks the same interface, the agent framework handles the rest.
+```python
+async def load_existing_thread(agent, current_thread, current_store):
+	keys = await _list_saved_thread_keys(current_store)
+	...
+	selected_key = keys[index - 1]
+	thread_id = _thread_id_from_key(selected_key, current_store.key_prefix)
+	new_store = RedisChatMessageStore(..., thread_id=thread_id, ...)
+
+	new_thread = agent.get_new_thread()
+	...
+	new_thread.message_store = new_store
+	await current_store.aclose()
+	print(f"Loaded thread: {selected_key}")
+	await show_history(new_store)
+	return new_thread, new_store
+```
+
+Option 3 in the menu calls `load_existing_thread`. It lists every Redis key under the `lab11` prefix, asks the user to pick one by number, constructs a store preloaded with that `thread_id`, and attaches it to a fresh `AgentThread`. Closing the old store before returning prevents lingering connections.
+
+#### Interactive loop
+
+```python
+async def interactive_demo(agent: ChatAgent) -> None:
+	thread, store = create_thread(agent)
+	while True:
+		print_menu(store.redis_key)
+		choice = input("Choose an option: ").strip()
+		if choice == "1":
+			prompt = input("...")
+			result = await agent.run(prompt, thread=thread)
+			...
+		if choice == "2":
+			await show_history(store)
+			continue
+		if choice == "3":
+			thread, store = await load_existing_thread(agent, thread, store)
+			continue
+		if choice == "4":
+			...  # start a fresh thread and Redis list
+		if choice == "0":
+			await store.aclose()
+			break
+```
+
+The loop is intentionally simple but demonstrates the full lifecycle: send prompts with `agent.run`, inspect Redis history, swap threads mid-session, and start over. Each branch either consumes the shared `store` or replaces it with a newly loaded one, keeping the thread/store pair in sync at all times.
+
+By studying `app.py` alongside `redis_chat_message_store.py`, you can see both halves of the persistence story: the store satisfies the protocol, and the client exercises it in realistic workflows (new conversations, inspections, resumptions). This structure is a solid starting point for any agent that needs durable conversational state.
+
+
+
 
