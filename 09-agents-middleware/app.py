@@ -14,7 +14,7 @@ async def main():
    
     credential = AzureCliCredential()
 
-    async with AzureOpenAIChatClient(
+    agent = AzureOpenAIChatClient(
         credential=credential,
         endpoint=os.environ["AOAI_ENDPOINT"],
         deployment_name=os.environ["AOAI_DEPLOYMENT"],
@@ -22,20 +22,18 @@ async def main():
     ).as_agent(
         name="GreetingAgent",
         instructions=(
-            "You are a friendly greeting assistant."
+            "You are a friendly greeting assistant. Use the get_time tool to include the current date and time in your greeting."
         ),
         tools=[get_time],
-        middleware=[
+         middleware=[
             logging_agent_middleware,
-            logging_function_middleware,
-        ],
-    ) as agent:
-        result = await agent.run("Hi there! What time is it right now?")
-        print(result.text)
+         #    logging_function_middleware,
+         ],
+        
+    )
+    result = await agent.run("Hi there! What date and time is it right now?")
+    print(result.text)
     
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-    

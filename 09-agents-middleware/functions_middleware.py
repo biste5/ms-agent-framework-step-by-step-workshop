@@ -5,6 +5,7 @@ from typing import Awaitable, Callable
 @tool(name="get_time", description="Return the current time in HH:MM:SS format.")
 def get_time() -> str:
     """Get the current time."""
+    print("[Tool] get_time called")
     from datetime import datetime
 
     return datetime.now().strftime("%H:%M:%S")
