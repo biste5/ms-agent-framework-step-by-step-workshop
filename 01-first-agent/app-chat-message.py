@@ -7,7 +7,8 @@ from azure.identity import AzureCliCredential
 agent = AzureOpenAIChatClient(
     credential=AzureCliCredential(),
     endpoint=os.environ["AOAI_ENDPOINT"],
-    deployment_name=os.environ["AOAI_DEPLOYMENT"]
+    deployment_name=os.environ["AOAI_DEPLOYMENT"],
+    api_key=os.environ.get("AOAI_API_KEY")
 ).create_agent(
     instructions="You are good at telling jokes.",
     name="Joker"
