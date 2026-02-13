@@ -1,9 +1,13 @@
 import asyncio
 import os
+from dotenv import load_dotenv
 from azure.identity import AzureCliCredential
 from agent_framework.azure import AzureOpenAIChatClient
 from middleware import logging_agent_middleware
 from functions_middleware import get_time, logging_function_middleware
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 async def main():
@@ -14,7 +18,8 @@ async def main():
         credential=credential,
         endpoint=os.environ["AOAI_ENDPOINT"],
         deployment_name=os.environ["AOAI_DEPLOYMENT"],
-    ).create_agent(
+        api_key=os.environ.get("AOAI_API_KEY")
+    ).as_agent(
         name="GreetingAgent",
         instructions=(
             "You are a friendly greeting assistant."

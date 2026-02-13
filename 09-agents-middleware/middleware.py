@@ -1,14 +1,14 @@
-from agent_framework import AgentRunContext
+from agent_framework import AgentContext
 from typing import Callable, Awaitable
 
 async def logging_agent_middleware(
-    context: AgentRunContext,
-    next: Callable[[AgentRunContext], Awaitable[None]],
+    context: AgentContext,
+    next: Callable[[], Awaitable[None]],
 ) -> None:
     """Simple middleware that logs agent execution."""
     print("FROM MIDDLEWARE (Agent): Starting GreetingAgent...")
 
     # Continue to agent execution
-    await next(context)
+    await next()
 
     print("FROM MIDDLEWARE (Agent): GreetingAgent finished!")

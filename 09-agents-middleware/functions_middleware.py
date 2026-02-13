@@ -1,8 +1,8 @@
-from agent_framework import FunctionInvocationContext, ai_function, function_middleware
+from agent_framework import FunctionInvocationContext, tool, function_middleware
 from typing import Awaitable, Callable
 
 
-@ai_function(name="get_time", description="Return the current time in HH:MM:SS format.")
+@tool(name="get_time", description="Return the current time in HH:MM:SS format.")
 def get_time() -> str:
     """Get the current time."""
     from datetime import datetime
@@ -13,11 +13,14 @@ def get_time() -> str:
 @function_middleware
 async def logging_function_middleware(
     context: FunctionInvocationContext,
-    next: Callable[[FunctionInvocationContext], Awaitable[None]],
+    call_next: Callable[[FunctionInvocationContext], Awaitable[None]],
 ) -> None:
-    """Middleware that logs function calls."""
-    print(f"FROM MIDDLEWARE (Function): Calling {context.function.name}")
+    """Function middleware that logs function execution."""
+    # Pre-processing: Log before function execution
+    print(f"[Function] Calling {context.function.name}")
 
-    await next(context)
+    # Continue to next middleware or function execution
+    await call_next(context)
 
-    print(f"FROM MIDDLEWARE (Function): Result => {context.result}")
+    # Post-processing: Log after function execution
+    print(f"[Function] {context.function.name} completed")

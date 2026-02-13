@@ -13,4 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "01-first-agent/app.py"]
+#CMD ["python", "01-first-agent/app.py"]
+CMD ["python", "09-agents-middleware/app.py"]
